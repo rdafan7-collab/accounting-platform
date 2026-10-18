@@ -366,7 +366,7 @@ function addRow(side){
   div.innerHTML=`
    <div class="flex gap-2">
      <div class="flex-1 min-w-0">
-       <select data-side="${side}" onchange="onSel(this)" class="acc w-full p-2 rounded border bg-white">${opts(side)}</select>
+       <select data-side="${side}" onchange="onSel(this, event)" class="acc w-full p-2 rounded border bg-white">${opts(side)}</select>
        <div class="newbox hidden flex gap-1">
          <input placeholder="اكتب اسم الحساب الجديد" class="flex-1 min-w-0 p-2 rounded border border-indigo-400" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNew(this)}">
          <select class="nt p-2 rounded border bg-white text-sm" title="نوع الحساب">${GOPTS}</select>
@@ -383,12 +383,20 @@ function delRow(b){
   const row=b.closest('.row'),box=row.parentElement;
   if(box.children.length>1){row.remove();calc()}
 }
-function onSel(sel){
+function onSel(sel, ev){
+  if(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
   if(sel.value!=='__new__'){showHint(sel.value);calc();return}
   const nb=sel.nextElementSibling;
-  sel.classList.add('hidden');nb.classList.remove('hidden');nb.querySelector('input').focus();
+  if(!nb) return;
+  sel.classList.add('hidden');
+  nb.classList.remove('hidden');
+  const inp = nb.querySelector('input');
+  if(inp) setTimeout(()=>inp.focus(), 100);
 }
-function confirmNew(el){
+ function confirmNew(el){
   const nb=el.closest('.newbox'),sel=nb.previousElementSibling,name=nb.querySelector('input').value.trim();
   if(!name){cancelNew(el);return}
   if(!accounts.includes(name)){const g=nb.querySelector('.nt').value;accounts.push(name);store.set('acc_list',accounts);types[name]=G2T[g[0]];codes[name]=autoCode(g);store.set('acc_types',types);store.set('acc_codes',codes)}
