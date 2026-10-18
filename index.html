@@ -66,7 +66,7 @@
     <div class="text-center"><button type="button" onclick="diagnose()" class="text-xs bg-slate-100 text-slate-700 border border-amber-300 px-3 py-1.5 rounded">❓ لماذا القيد غير متوازن؟</button></div>
     <div id="diag" class="hidden"></div>
     <div class="grid md:grid-cols-2 gap-4">
-      <input id="desc" placeholder="البيان: مثال: شراء بضاعة نقداً" class="p-2.5 rounded border" required>
+      <input id="desc" dir="rtl" placeholder="البيان: مثال: شراء بضاعة نقداً" class="p-2.5 rounded border text-base" required>
       <input id="date" type="date" class="p-2.5 rounded border" required>
     </div>
     
@@ -409,7 +409,7 @@ function addRow(side){
        <select data-side="${side}" onchange="showHint(this.value);calc();" class="acc w-full p-2 rounded border bg-white">${opts(side)}</select>
        <button type="button" onclick="showNewBox(this)" class="bg-indigo-100 text-indigo-700 px-3 rounded border border-indigo-300 font-bold" title="إضافة حساب جديد">＋</button>
        <div class="newbox hidden absolute inset-0 bg-white flex gap-1 z-10" style="width:100%">
-         <input placeholder="اسم الحساب" class="flex-1 min-w-0 p-2 rounded border border-indigo-400" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNew(this)}">
+         <input dir="rtl" placeholder="اسم الحساب" class="flex-1 min-w-[80px] p-2 rounded border border-indigo-400 text-base" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNew(this)}">
          <select class="nt p-2 rounded border bg-white text-sm" title="نوع الحساب">${GOPTS}</select>
          <button type="button" onclick="confirmNew(this)" class="bg-indigo-600 text-white px-3 rounded">✓</button>
          <button type="button" onclick="cancelNew(this)" class="bg-slate-300 px-3 rounded">✕</button>
@@ -637,7 +637,7 @@ window.edRow = function(side, x){
     `<select class="flex-1 min-w-0 p-2 rounded border bg-white" onchange="edCalc()">${window.edOpts(x && x.a)}</select>
      <button type="button" onclick="window._edShowNew(this)" class="bg-indigo-100 text-indigo-700 px-3 rounded border border-indigo-300 font-bold" title="حساب جديد">＋</button>
      <div class="edNewBox hidden absolute inset-0 bg-white flex gap-1 z-10" style="width:100%">
-        <input placeholder="اسم الحساب" class="flex-1 min-w-0 p-2 rounded border border-indigo-400" onkeydown="if(event.key==='Enter'){event.preventDefault();window._edConfirmNew(this)}">
+        <input dir="rtl" placeholder="اسم الحساب" class="flex-1 min-w-[80px] p-2 rounded border border-indigo-400 text-base" onkeydown="if(event.key==='Enter'){event.preventDefault();window._edConfirmNew(this)}">
         <select class="ent p-2 rounded border bg-white text-sm"><option value="A">أصول</option><option value="L">خصوم</option><option value="E">حقوق ملكية</option><option value="R">إيرادات</option><option value="X">مصروفات</option></select>
         <button type="button" onclick="window._edConfirmNew(this)" class="bg-indigo-600 text-white px-3 rounded">✓</button>
         <button type="button" onclick="window._edCancelNew(this)" class="bg-slate-300 px-3 rounded">✕</button>
