@@ -385,7 +385,7 @@ const cp=a=>showCodes&&codes[a]?esc(codes[a])+' - ':'';
 const cf2=a=>showCodes&&codes[a]?`<span class="text-slate-400 text-xs font-mono">${esc(codes[a])}</span> `:'';
 
 let entries=store.get('acc_entries',[]).map(e=>e.debits?e:{id:e.id,date:e.date,desc:e.desc,debits:[{a:e.debit,m:e.amount}],credits:[{a:e.credit,m:e.amount}]});
-
+let customTables = store.get('acc_tables', []);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>n.toLocaleString(LOC,{maximumFractionDigits:2});
 const sum=l=>l.reduce((s,x)=>s+x.m,0);
@@ -594,9 +594,20 @@ function renderFin(){
 }
 
 function backup(){
-  const l=document.createElement('a');
-  l.href=URL.createObjectURL(new Blob([JSON.stringify({accounts,types,codes,entries,tables:customTables})],{type:'application/json'}));
-  l.download='accounting-backup.json';l.click();
+  try {
+    const data = {accounts, types, codes, entries, tables:customTables};
+    const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const l = document.createElement('a');
+    l.href = url;
+    l.download = 'accounting-backup.json';
+    document.body.appendChild(l);
+    l.click();
+    document.body.removeChild(l);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('حدث خطأ: ' + e.message);
+  }
 }
 function restore(inp){
   const f=inp.files[0];if(!f)return;
