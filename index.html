@@ -36,6 +36,7 @@
     </div>
   </div>
   <div class="flex flex-wrap items-center gap-2">
+    <button type="button" onclick="exportPdf('current')" class="text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-full px-3 py-1 font-bold" title="حفظ القسم الحالي كملف PDF">📄 حفظ PDF</button>
     <label class="inline-flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 rounded-full px-3 py-1 cursor-pointer text-slate-700"><input type="checkbox" id="codesChk" onchange="toggleCodes()"> ⚙️ إظهار أكواد الحسابات</label>
     <span id="sheetPill" onclick="tab('sheets')" class="hidden inline-block text-xs bg-indigo-100 text-indigo-800 rounded-full px-3 py-1 cursor-pointer"></span>
   </div>
@@ -261,6 +262,8 @@
     <div class="grid grid-cols-2 gap-2">
       <button onclick="window.print()" class="text-xs bg-slate-200 px-2 py-2 rounded">🖨️ طباعة / PDF</button>
       <button onclick="exportXlsx()" class="text-xs bg-slate-700 text-white px-2 py-2 rounded">📊 تصدير Excel</button>
+      <button onclick="exportPdf('current')" class="text-xs bg-rose-600 text-white px-2 py-2 rounded font-bold">📄 حفظ PDF (القسم الحالي)</button>
+      <button onclick="exportPdf('all')" class="text-xs bg-rose-100 text-rose-800 px-2 py-2 rounded font-bold">📑 PDF كامل (التقرير المحاسبي)</button>
       <button onclick="setLang()" class="text-xs bg-indigo-100 text-indigo-800 px-2 py-2 rounded font-bold" title="English / عربي">EN / ع</button>
       <button onclick="tourStart()" class="text-xs bg-slate-100 text-slate-700 px-2 py-2 rounded font-bold">❓ جولة</button>
       <button onclick="backup()" class="text-xs bg-slate-200 px-2 py-2 rounded">💾 نسخة احتياطية</button>
@@ -1694,6 +1697,10 @@ const PHR=`أدخل بياناتك كما هي مسجلة في المعهد. ت�
 🧰 تسويات وأدوات=>🧰 Adjustments & tools
 📊 ورقة تدريب (Excel)=>📊 Practice sheet (Excel)
 🖨️ طباعة / PDF=>🖨️ Print / PDF
+📑 PDF كامل (التقرير المحاسبي)=>📑 Full PDF (accounting report)
+📄 حفظ PDF (القسم الحالي)=>📄 Save PDF (current section)
+📄 حفظ PDF=>📄 Save PDF
+حفظ القسم الحالي كملف PDF=>Save the current section as a PDF file
 💾 نسخة احتياطية=>💾 Backup
 📂 استرجاع=>📂 Restore
 📊 تصدير Excel=>📊 Export Excel
@@ -2294,6 +2301,173 @@ function exportXlsx(){
   wb.Workbook={Views:[{RTL:LANG!=='en'}]};
   XLSX.writeFile(wb,'accounting.xlsx');
 }
+
+
+// ===== أدوات التصدير المشتركة: تنزيل PDF / Excel مباشرة كملف =====
+function xpLoad(src){
+  return new Promise((ok,no)=>{
+    const old=document.querySelector('script[data-xp="'+src+'"]');
+    if(old&&old.dataset.ok)return ok();
+    const s=document.createElement('script');
+    s.src=src;s.dataset.xp=src;
+    s.onload=()=>{s.dataset.ok='1';ok()};
+    s.onerror=()=>{s.remove();no(new Error('load failed: '+src))};
+    document.head.appendChild(s);
+  });
+}
+function xpBusy(msg){
+  let o=document.getElementById('xpBusy');
+  if(!o){
+    o=document.createElement('div');o.id='xpBusy';o.className='no-print';
+    o.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.8);color:#fff;display:flex;align-items:center;justify-content:center;font:700 16px Cairo,Arial,sans-serif;text-align:center;padding:24px';
+    document.body.appendChild(o);
+  }
+  o.textContent=msg;o.style.display='flex';
+  return {set:m=>{o.textContent=m},close:()=>{o.style.display='none'}};
+}
+function xpDownload(blob,name){
+  const u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),5000);
+}
+const xpStamp=()=>new Date().toISOString().slice(0,10);
+// مواضع العناصر التي لا يجوز قصّها بين صفحتين (صفوف، بطاقات، عناوين...)
+function xpAtoms(root,scale){
+  const base=root.getBoundingClientRect().top;
+  return [...root.querySelectorAll('tr,h1,h2,h3,p,li,svg,[data-atom],[class*="rounded-xl"],[class*="rounded-lg"]')]
+    .map(e=>{const r=e.getBoundingClientRect();return [(r.top-base)*scale,(r.bottom-base)*scale]})
+    .filter(a=>a[1]-a[0]>1);
+}
+// blocks: [{node, width, landscape, dir}] — كل block يبدأ في صفحة جديدة
+async function xpBuild(blocks,fileName,onProgress){
+  await xpLoad('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await xpLoad('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const jsPDF=window.jspdf.jsPDF;
+  const sx=window.scrollX,sy=window.scrollY;
+  window.scrollTo(0,0);
+  const host=document.createElement('div');
+  host.style.cssText='position:absolute;left:0;top:0;z-index:-1';
+  document.body.appendChild(host);
+  let pdf=null;
+  const newPage=land=>{
+    if(!pdf)pdf=new jsPDF({orientation:land?'l':'p',unit:'mm',format:'a4',compress:true});
+    else pdf.addPage('a4',land?'l':'p');
+  };
+  try{
+    for(let bi=0;bi<blocks.length;bi++){
+      const b=blocks[bi],W=b.width||1000,land=!!b.landscape;
+      if(onProgress)onProgress(bi+1,blocks.length);
+      const wrap=document.createElement('div');
+      wrap.className='xp-wrap';
+      wrap.style.cssText='width:'+W+'px;box-sizing:border-box;padding:20px;background:#fff;color:#0f172a;font-family:Cairo,Arial,sans-serif;direction:'+(b.dir||'rtl');
+      const st=document.createElement('style');
+      st.textContent='.xp-wrap *{letter-spacing:0!important;box-shadow:none!important}';
+      wrap.appendChild(st);wrap.appendChild(b.node);
+      host.innerHTML='';host.appendChild(wrap);
+      await new Promise(r=>setTimeout(r,90));
+      if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+      const H=Math.max(1,wrap.offsetHeight);
+      const scale=Math.max(.8,Math.min(2,Math.sqrt(12e6/(W*H)),16000/H));
+      let atoms=[];
+      const canvas=await html2canvas(wrap,{
+        scale,backgroundColor:'#ffffff',useCORS:true,logging:false,windowWidth:Math.max(1100,W+40),
+        onclone:(doc,el)=>{try{atoms=xpAtoms(el,scale)}catch(x){}}
+      });
+      if(!atoms.length){try{atoms=xpAtoms(wrap,scale)}catch(x){}}
+      const pageW=land?297:210,pageH=land?210:297,M=8,FOOT=8;
+      const cw=pageW-2*M,pxmm=canvas.width/cw,pageHpx=(pageH-2*M-FOOT)*pxmm;
+      const A=atoms.filter(a=>a[1]-a[0]<pageHpx*0.7);
+      let y=0;
+      while(y<canvas.height-1){
+        let end=Math.min(y+pageHpx,canvas.height);
+        if(end<canvas.height){
+          let cut=end;
+          for(let g=0;g<300;g++){
+            const hit=A.find(a=>a[0]<cut-1&&a[1]>cut+1);
+            if(!hit)break;
+            cut=hit[0];
+          }
+          if(cut>y+pageHpx*0.25)end=cut;
+        }
+        const yi=Math.round(y),sh=Math.max(1,Math.round(end)-yi);
+        const part=document.createElement('canvas');
+        part.width=canvas.width;part.height=sh;
+        const ctx=part.getContext('2d');
+        ctx.fillStyle='#fff';ctx.fillRect(0,0,part.width,sh);
+        ctx.drawImage(canvas,0,yi,canvas.width,sh,0,0,canvas.width,sh);
+        newPage(land);
+        pdf.addImage(part.toDataURL('image/jpeg',0.92),'JPEG',M,M,cw,sh/pxmm);
+        y=end;
+      }
+    }
+    const n=pdf.getNumberOfPages();
+    for(let i=1;i<=n;i++){
+      pdf.setPage(i);pdf.setFontSize(8);pdf.setTextColor(130);
+      const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+      pdf.text('EDU_Acc  |  '+i+' / '+n,pw/2,ph-4,{align:'center'});
+    }
+    pdf.save(fileName);
+  }finally{
+    host.remove();
+    window.scrollTo(sx,sy);
+  }
+}
+
+// ===== حفظ PDF للمنصة (القسم الحالي أو التقرير المحاسبي كاملاً) =====
+const XP_KEYS=['journal','ledger','trial','fin','dash'];
+const XP_ORDER=['journal','ledger','trial','fin'];
+function xpClone(k){
+  const n=document.getElementById('v-'+k).cloneNode(true);
+  n.classList.remove('hidden');
+  // نبقي كل قيد (سطوره وبيانه) معاً في صفحة واحدة
+  const jb=n.querySelector('#jBody');
+  if(jb){
+    let grp=null;
+    [...jb.children].forEach(r=>{
+      if(!grp||r.classList.contains('border-t')){grp=document.createElement('tbody');grp.setAttribute('data-atom','1');jb.parentNode.insertBefore(grp,jb)}
+      grp.appendChild(r);
+    });
+    jb.remove();
+  }
+  n.querySelectorAll('.no-print,button,input,select,textarea,script,iframe').forEach(x=>x.remove());
+  n.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
+  n.removeAttribute('id');
+  n.querySelectorAll('.overflow-x-auto').forEach(x=>x.classList.remove('overflow-x-auto'));
+  n.querySelectorAll('[class*="md:grid-cols-2"]').forEach(x=>{x.style.gridTemplateColumns='repeat(2,minmax(0,1fr))'});
+  return n;
+}
+async function exportPdf(scope){
+  const vis=TABS.find(k=>{const v=document.getElementById('v-'+k);return v&&!v.classList.contains('hidden')});
+  const keys=scope==='all'?XP_ORDER:(XP_KEYS.includes(vis)?[vis]:XP_ORDER);
+  if(!entries.length){
+    alert(T2('لا توجد قيود لتصديرها بعد. سجّل قيداً أولاً.','There are no entries to export yet. Record an entry first.'));
+    return;
+  }
+  const ov=xpBusy(T2('جارٍ تجهيز ملف PDF… قد يستغرق لحظات','Preparing your PDF… this may take a moment'));
+  try{
+    let who='';
+    try{const p=getProfile();if(p&&p.role==='student')who=p.name+' — '+T2('الكود','Code')+': '+p.code+' — '+yearName(p.year)}catch(x){}
+    const dir=LANG==='en'?'ltr':'rtl';
+    const blocks=keys.map(k=>{
+      const box=document.createElement('div');
+      const head=document.createElement('div');
+      head.setAttribute('data-atom','1');
+      head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:3px solid #4f46e5;padding-bottom:8px;margin-bottom:14px';
+      head.innerHTML='<div><div style="font-size:20px;font-weight:700;color:#1e293b">EDU_Acc — '+esc(T2('منصة التعليم المحاسبي','Accounting Education Platform'))+'</div>'
+        +(who?'<div style="font-size:13px;color:#475569;margin-top:2px">'+esc(who)+'</div>':'')
+        +'</div><div style="font-size:12px;color:#64748b" dir="ltr">'+xpStamp()+'</div>';
+      box.appendChild(head);box.appendChild(xpClone(k));
+      return {node:box,width:1000,dir};
+    });
+    const tag=(scope==='all'||!XP_KEYS.includes(vis))?'report':vis;
+    await xpBuild(blocks,'EDU_Acc_'+tag+'_'+xpStamp()+'.pdf',(i,n)=>ov.set(T2('جارٍ تجهيز PDF… ','Preparing PDF… ')+i+' / '+n));
+  }catch(err){
+    console.error(err);
+    ov.close();
+    if(confirm(T2('تعذر إنشاء ملف PDF (قد تحتاج اتصالاً بالإنترنت لتحميل المكتبة). هل تريد استخدام نافذة الطباعة والحفظ كـ PDF بدلاً من ذلك؟','Could not create the PDF (an internet connection may be needed). Use the print dialog and save as PDF instead?')))window.print();
+  }finally{ov.close()}
+}
+
 
 // ===== التنقل بين الأقسام =====
 const TABS=['journal','ledger','trial','fin','dash','tables','sheets','ex','tools'];
