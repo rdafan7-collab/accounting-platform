@@ -151,7 +151,6 @@ const save=()=>{sync();try{localStorage.setItem(KEY,JSON.stringify({sheets,act})
 const $=id=>document.getElementById(id);
 const sc=$('sc'),g=$('g'),ed=$('ed'),fb=$('fb'),nb=$('nb'),sb=$('sb'),ab=$('ab'),pb=$('pb'),st=$('st');
 
-// ===== تراجع / إعادة =====
 let undo=[],redo=[];
 const state=()=>{sync();return JSON.stringify({sheets,act})};
 function loadState(s){const d=JSON.parse(s);sheets=d.sheets;setAct(d.act);buildCols();render();updateSel();renderTabs();cfList()}
@@ -159,7 +158,6 @@ function snap(){undo.push(state());if(undo.length>60)undo.shift();redo=[]}
 function doUndo(){if(!undo.length)return;redo.push(state());loadState(undo.pop());save()}
 function doRedo(){if(!redo.length)return;undo.push(state());loadState(redo.pop());save()}
 
-// ===== محرك المعادلات =====
 let memo=new Map(),stack=new Set();
 const flat=a=>a.flat(Infinity),nums=a=>flat(a).filter(x=>typeof x==='number');
 function match(v,c){
@@ -226,7 +224,6 @@ function shiftRefs(f,dc,dr){
   });
 }
 
-// ===== بناء الجدول =====
 let h='<colgroup id="cg"></colgroup><thead><tr><th class="rh"></th>';
 for(let c=0;c<COLS;c++)h+=`<th data-c="${c}">${L(c)}<i class="rz" data-c="${c}"></i></th>`;
 h+='</tr></thead><tbody>';
@@ -263,7 +260,6 @@ function render(){
   renderCharts();
 }
 
-// ===== التحديد =====
 let a={c:0,r:1},e={c:0,r:1},editing=false,ef=null,drag=false,pt=null,ptA=null,hlList=[],clip=null,rs=null;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const mergeAt=(c,r)=>sh().merges.find(m=>c>=m.c1&&c<=m.c2&&r>=m.r1&&r<=m.r2);
@@ -304,7 +300,6 @@ function go(dc,dr,ext){
   updateSel(true);
 }
 
-// ===== التحرير =====
 function startEdit(txt,field){
   if(editing)return;
   editing=true;ef=field||ed;
@@ -333,7 +328,6 @@ fb.oninput=()=>{ed.value=fb.value;pt=null;pb.style.display='none'};
 fb.onfocus=()=>{if(!editing)startEdit(null,fb)};
 ed.onblur=fb.onblur=()=>setTimeout(()=>{if(editing&&document.activeElement!==ed&&document.activeElement!==fb)endEdit(true)},0);
 
-// الإشارة للخلايا بالماوس أثناء كتابة معادلة
 const OP=/[=+\-*\/(,<>^]$/;
 function pointMode(){
   if(!ef||ef.value[0]!=='=')return false;
@@ -351,7 +345,6 @@ function point(td,extend){
   (ef===ed?fb:ed).value=ef.value;drawBox(pb,c1,r1,c2,r2);
 }
 
-// ===== الماوس =====
 sc.addEventListener('mousedown',ev=>{
   const rz=ev.target.closest('.rz');
   if(rz){ev.preventDefault();rs={c:+rz.dataset.c,x:ev.clientX,w:widths[rz.dataset.c]||90};return}
@@ -379,7 +372,6 @@ document.addEventListener('mousemove',ev=>{if(rs){widths[rs.c]=Math.max(40,rs.w+
 document.addEventListener('mouseup',()=>{drag=false;if(rs){rs=null;save()}});
 sc.addEventListener('dblclick',ev=>{if(ev.target.closest('td'))startEdit(null)});
 
-// ===== لوحة المفاتيح =====
 sc.addEventListener('keydown',ev=>{
   if(editing||ev.target===ed)return;
   const k=ev.key,ctrl=ev.ctrlKey||ev.metaKey,sh=ev.shiftKey;
@@ -405,7 +397,6 @@ nb.addEventListener('keydown',ev=>{
   sc.focus();updateSel(true);
 });
 
-// ===== تعديل المحتوى والتنسيق =====
 function eachCell(fn){const R=rng();for(let y=R.r1;y<=R.r2;y++)for(let x=R.c1;x<=R.c2;x++)fn(ref(x,y),x,y)}
 function clearRange(){snap();eachCell(k=>delete raw[k]);save();render();updateSel()}
 function setStyle(p){
@@ -441,7 +432,6 @@ function autoSum(){
   save();render();updateSel();sc.focus({preventScroll:true});
 }
 
-// ===== نسخ / قص / لصق =====
 function doCopy(cd,cut){
   const R=rng(),rows=[],cl=[];
   for(let y=R.r1;y<=R.r2;y++){const t=[],c=[];for(let x=R.c1;x<=R.c2;x++){const k=ref(x,y);t.push(fmtVal(get(k),''));c.push({v:raw[k],s:style[k]})}rows.push(t.join('\t'));cl.push(c)}
@@ -474,7 +464,6 @@ document.addEventListener('paste',ev=>{
   save();render();updateSel();
 });
 
-// ===== قالب / مسح / تصدير =====
 function template(){
   if(Object.keys(raw).length&&!confirm('سيُستبدل محتوى الورقة بالقالب. متابعة؟'))return;
   snap();
@@ -501,10 +490,8 @@ function exportCSV(){
   l.download='sheet.csv';l.click();
 }
 
-// ===== ميزات المرحلة 4 =====
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-// دمج وتجميد
 function toggleMerge(){
   const R=rng(),M=sh().merges,i=M.findIndex(m=>m.c1===R.c1&&m.c2===R.c2&&m.r1===R.r1&&m.r2===R.r2);
   if(i<0&&R.c1===R.c2&&R.r1===R.r2)return alert('حدد أكثر من خلية لدمجها.');
@@ -520,7 +507,6 @@ function toggleMerge(){
 }
 function toggleFreeze(){sh().frozen=!sh().frozen;save();render()}
 
-// تنسيق شرطي
 const CFC={red:['#fecaca','#991b1b'],green:['#bbf7d0','#166534'],yellow:['#fef08a','#854d0e']};
 const OPN={gt:'أكبر من',lt:'أصغر من',eq:'تساوي',neg:'سالب',pos:'موجب',txt:'يحتوي'};
 function cfHit(q,v){
@@ -537,7 +523,6 @@ function cfList(){dvList();
   $('cfL').innerHTML=sh().cf.map((q,i)=>`<span class="inline-flex items-center gap-1 bg-slate-100 rounded px-2 py-0.5 text-xs"><i style="background:${q.bg};width:12px;height:12px;display:inline-block;border:1px solid #999"></i>${ref(q.c1,q.r1)}:${ref(q.c2,q.r2)} ${OPN[q.op]} ${esc(q.v)}<button onclick="cfDel(${i})">✕</button></span>`).join(' ');
 }
 
-// رسوم بيانية
 const PAL=['#4f46e5','#16a34a','#dc2626','#d97706','#0891b2','#7c3aed'];
 function chartData(q){
   const lc=q.c2>q.c1,c0=lc?q.c1+1:q.c1,cols=[];
@@ -587,7 +572,6 @@ function addChart(){
 }
 function delChart(i){sh().charts.splice(i,1);save();renderCharts()}
 
-// أوراق متعددة
 function renderTabs(){
   $('tabs').innerHTML=sheets.map((s,i)=>`<button onclick="switchSheet(${i})" ondblclick="renameSheet(${i})" class="px-3 py-1 text-sm rounded-t border ${i===act?'bg-white font-bold text-indigo-700':'bg-slate-200'}">${esc(s.name)}</button>`).join('')
    +'<button onclick="addSheet()" class="px-3 py-1 text-sm bg-slate-100 rounded border" title="ورقة جديدة">＋</button>'
@@ -642,8 +626,24 @@ function importJournal(list){
 }
 function importPlatform(){
   let list=[];
-  try{list=JSON.parse(localStorage.getItem('acc_entries'))||[]}catch(x){}
-  if(!list.length)return alert('لم أجد قيوداً من المنصة في هذا المكان. افتح الصفحتين من نفس المجلد/الموقع، أو استخدم «📂 من ملف» واختر ملف النسخة الاحتياطية من زر 💾 في المنصة.');
+  try{
+    // محاولة القراءة من الـ localStorage (تعمل إذا كانوا على نفس الدومين)
+    list=JSON.parse(localStorage.getItem('acc_entries'))||[];
+    // إذا كان فارغاً، نحاول قراءة السيناريو النشط
+    if(!list.length) {
+      let scenarios = JSON.parse(localStorage.getItem('acc_scenarios') || '[]');
+      let act = parseInt(localStorage.getItem('acc_active_scenario') || '0');
+      if(scenarios[act] && scenarios[act].entries) list = scenarios[act].entries;
+    }
+  }catch(x){}
+  
+  if(!list.length){
+    if(confirm('⚠️ المتصفح منع القراءة التلقائية.\nهل تريد اختيار ملف النسخة الاحتياطية (accounting-backup.json) الذي حملته من المنصة الآن؟')) {
+        const fileInput = document.querySelector('input[type="file"][accept=".json"]');
+        if(fileInput) fileInput.click();
+    }
+    return;
+  }
   importJournal(list);
 }
 function importFile(inp){
@@ -653,7 +653,6 @@ function importFile(inp){
   r.readAsText(f);
 }
 
-// دعم اللمس
 let tsel=false,lastTap=0,tAt=0;
 const fire=(el,t)=>el&&el.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true}));
 function toggleSel(){
@@ -682,7 +681,6 @@ sc.addEventListener('click',ev=>{
   lastTap=now;
 });
 
-// ===== قوائم منسدلة (Data Validation) =====
 const dvAt=(c,r)=>{const Ls=sh().dv||[];for(let i=Ls.length-1;i>=0;i--){const q=Ls[i];if(c>=q.c1&&c<=q.c2&&r>=q.r1&&r<=q.r2)return q}return null};
 const isRefSrc=t=>/^=?\$?[A-Za-z]\$?\d+(:\$?[A-Za-z]\$?\d+)?$/.test(t.trim());
 function dvItems(q){
@@ -756,7 +754,6 @@ document.addEventListener('keydown',ev=>{
   if(ev.altKey&&ev.key==='ArrowDown'&&ev.target===sc&&!editing&&dvAt(a.c,a.r)){ev.preventDefault();ev.stopPropagation();dvOpen()}
 },true);
 
-// ===== قوالب محاسبية جاهزة =====
 const rk=(c1,r1,c2,r2)=>{const o=[];for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++)o.push(ref(c,r));return o};
 const YEL='#fef9c3';
 function payrollData(){
@@ -845,7 +842,6 @@ function loadTpl(k){
   else if(k==='cash')buildTpl(cashData());
 }
 
-// ===== أدوات الألوان =====
 $('fillSw').innerHTML=['#fef08a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#e2e8f0'].map(c=>`<button class="sw" style="background:${c}" onclick="setStyle({bg:'${c}'})"></button>`).join('')+'<button class="tb" onclick="setStyle({bg:\'\'})" title="بدون تعبئة">✕</button>';
 $('txtSw').innerHTML=['#000000','#dc2626','#16a34a','#2563eb','#7c3aed'].map(c=>`<button class="sw" style="background:${c}" onclick="setStyle({c:'${c}'})"></button>`).join('');
 $('tbar').addEventListener('mousedown',ev=>{if(ev.target.closest('button'))ev.preventDefault()});
