@@ -255,7 +255,7 @@
     <button id="t-sheets" onclick="tab('sheets')" class="navBtn w-full text-right px-3 py-2.5 rounded-lg font-bold transition text-slate-700 hover:bg-slate-100">📝 الشيتات</button>
     <button id="t-ex" onclick="tab('ex')" class="navBtn w-full text-right px-3 py-2.5 rounded-lg font-bold transition text-slate-700 hover:bg-slate-100">🎓 التمارين</button>
     <button id="t-tools" onclick="tab('tools')" class="navBtn w-full text-right px-3 py-2.5 rounded-lg font-bold transition text-slate-700 hover:bg-slate-100">🧰 تسويات وأدوات</button>
-    <a href="spreadsheet.html" target="_blank" class="navBtn w-full text-right px-3 py-2.5 rounded-lg font-bold text-emerald-700 hover:bg-emerald-50 no-underline">📊 ورقة تدريب (Excel)</a>
+    <a href="spreadsheet.html" target="_blank" onclick="openSheetApp(event)" class="navBtn w-full text-right px-3 py-2.5 rounded-lg font-bold text-emerald-700 hover:bg-emerald-50 no-underline">📊 ورقة تدريب (Excel)</a>
   </nav>
   <div class="p-3 border-t space-y-2 bg-slate-50 shrink-0">
     <div class="text-xs text-slate-400 font-bold px-1 pb-1">أدوات عامة</div>
@@ -2468,6 +2468,18 @@ async function exportPdf(scope){
   }finally{ov.close()}
 }
 
+
+// ===== ربط ورقة التدريب بالمنصة (يشتغل حتى لو الملفات مفتوحة من الجهاز مباشرة) =====
+let sheetWin=null;
+function openSheetApp(ev){
+  const w=window.open('spreadsheet.html','_blank');
+  if(w){if(ev)ev.preventDefault();sheetWin=w}
+}
+window.addEventListener('message',ev=>{
+  const d=ev.data;
+  if(!d||d.type!=='edu-need-entries'||!sheetWin||ev.source!==sheetWin)return;
+  try{ev.source.postMessage({type:'edu-entries',entries:JSON.parse(JSON.stringify(entries))},'*')}catch(x){}
+});
 
 // ===== التنقل بين الأقسام =====
 const TABS=['journal','ledger','trial','fin','dash','tables','sheets','ex','tools'];
