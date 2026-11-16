@@ -295,6 +295,15 @@ function init(){
       localStorage.setItem('acc_active_scenario', String(activeScenario));
     } catch(e){}
   }
+  // markDirty=false عند فتح الصفحة حتى لا تُرفع نسخة محلية فوق السحابة من غير تعديل حقيقي
+  function persistActiveBooks(markDirty){
+    const pairs=[['acc_entries',entries],['acc_list',accounts],['acc_types',types],['acc_codes',codes]];
+    pairs.forEach(function(pair){
+      try{ localStorage.setItem(pair[0], JSON.stringify(pair[1])); }catch(e){}
+      if(markDirty&&typeof cloudMarkDirty==='function') cloudMarkDirty(pair[0]);
+    });
+    try{ localStorage.setItem('acc_active_scenario', String(activeScenario)); }catch(e){}
+  }
   window.saveCurrentScenario = function(){
     if(!scenarios[activeScenario]) return;
     scenarios[activeScenario].entries = JSON.parse(JSON.stringify(entries));
@@ -303,22 +312,20 @@ function init(){
     scenarios[activeScenario].codes = {...codes};
     saveLS();
   };
-  window.loadScenario = function(i){
-    if(i === activeScenario) return;
-    window.saveCurrentScenario();
+  // force=true يحمّل الشيت حتى لو رقمه لم يتغير (مهم بعد الحذف حتى لا تبقى قيود الشيت المحذوف على الشاشة)
+  window.loadScenario = function(i, force){
+    i = +i;
+    if(!Number.isInteger(i) || i<0 || !scenarios[i]) return;
+    if(!force && i === activeScenario) return;
+    if(!force) window.saveCurrentScenario();
     activeScenario = i;
-    const s = scenarios[i]; if(!s) return;
+    const s = scenarios[i];
     entries = JSON.parse(JSON.stringify(s.entries || []));
     accounts = [...(s.accounts || [])];
     types = {...(s.types || {})};
     codes = {...(s.codes || {})};
-    try {
-      localStorage.setItem('acc_entries', JSON.stringify(entries));
-      localStorage.setItem('acc_list', JSON.stringify(accounts));
-      localStorage.setItem('acc_types', JSON.stringify(types));
-      localStorage.setItem('acc_codes', JSON.stringify(codes));
-      localStorage.setItem('acc_active_scenario', String(activeScenario));
-    } catch(e){}
+    persistActiveBooks(true);
+    saveLS();
     if(typeof refreshSelects === 'function') refreshSelects();
     if(typeof renderAll === 'function') renderAll();
     renderScenarioTabs();
@@ -339,13 +346,20 @@ function init(){
     const n = prompt('📝 اسم الشيت:', scenarios[i].name);
     if(n && n.trim()){ scenarios[i].name = n.trim().slice(0,30); saveLS(); renderScenarioTabs(); }
   };
+  // حذف شيت مع إعادة ترقيم المؤشر، ومنع حفظ قيود الشيت المحذوف فوق الشيت الذي يحل مكانه
   window.deleteScenario = function(i){
+    i = +i;
     if(scenarios.length <= 1){ alert('⚠️ لا يمكن حذف آخر شيت'); return; }
+    if(!scenarios[i]) return;
     if(!confirm('🗑 حذف الشيت "'+scenarios[i].name+'"؟')) return;
+    const removingActive = i === activeScenario;
+    if(!removingActive) window.saveCurrentScenario();
     scenarios.splice(i,1);
-    if(activeScenario >= scenarios.length) activeScenario = scenarios.length - 1;
+    if(removingActive) activeScenario = Math.min(i, scenarios.length - 1);
+    else if(i < activeScenario) activeScenario--;
+    if(activeScenario < 0) activeScenario = 0;
     saveLS();
-    window.loadScenario(activeScenario);
+    window.loadScenario(activeScenario, true);
   };
   window.renderScenarioTabs = function(){
     let box = $('scenarioTabs');
@@ -393,12 +407,7 @@ function init(){
       accounts = [...(s.accounts || [])];
       types = {...(s.types || {})};
       codes = {...(s.codes || {})};
-      try {
-        localStorage.setItem('acc_entries', JSON.stringify(entries));
-        localStorage.setItem('acc_list', JSON.stringify(accounts));
-        localStorage.setItem('acc_types', JSON.stringify(types));
-        localStorage.setItem('acc_codes', JSON.stringify(codes));
-      } catch(e){}
+      persistActiveBooks(false);
       if(typeof refreshSelects === 'function') refreshSelects();
       if(typeof renderAll === 'function') renderAll();
     }
@@ -430,6 +439,41 @@ function init(){
   document.addEventListener('toggle', function(ev){
     if(ev.target && ev.target.tagName === 'DETAILS') setTimeout(injectAddAssetButton, 100);
   }, true);
+
+  /* ===== حماية قيود «توزيع الحل» التجريبية (اللي عليها علامة demo) =====
+     القاعدة: التعديل ممنوع تمامًا (عشان ما يتلخبطش حل الطالب بحل العرض)،
+     لكن الحذف مسموح — قيد قيد أو كلهم — عشان يقدر يمسح أثر الشرح ويجرّب بنفسه. */
+  function protectDemoEntries(){
+    const findE = id => (typeof entries !== 'undefined' ? entries : []).find(x => String(x.id) === String(id));
+    if(typeof window.editEntry === 'function' && !window.editEntry.__demoGuard){
+      const _edit = window.editEntry;
+      const guarded = function(id){
+        const e = findE(id);
+        if(e && e.demo) return alert('⛔ ده قيد من «توزيع الحل» التجريبي — محمي من التعديل عشان ما يتلخبطش حلك بحل العرض.\nلو عاوز تغيّره: امسحه (الحذف مسموح) وسجّل قيدك بنفسك من شاشة قيد يومية.');
+        return _edit.call(this, id);
+      };
+      guarded.__demoGuard = true;
+      window.editEntry = guarded;
+    }
+    if(typeof window.delEntry === 'function' && !window.delEntry.__demoGuard){
+      const _del = window.delEntry;
+      const guardedDel = function(id){
+        const e = findE(id);
+        /* القيد التجريبي بنحذفه مباشرة — الحذف مقصود يفضل متاح حتى لو مصدر القيد مقفول عند الحذف */
+        if(e && e.demo){
+          if(!confirm('حذف هذا القيد التجريبي (من أثر توزيع الحل)؟')) return;
+          entries = entries.filter(x => x.id !== id);
+          store.set('acc_entries', entries);
+          if(typeof renderAll === 'function') renderAll();
+          return;
+        }
+        return _del.call(this, id);
+      };
+      guardedDel.__demoGuard = true;
+      window.delEntry = guardedDel;
+    }
+  }
+  protectDemoEntries();
   console.log('✅ EDU_Acc patches ready');
 }
 
